@@ -834,6 +834,8 @@ class Vcs(Simulator):
                 "+define+COCOTB_SIM=1",
                 "-load",
                 cocotb.config.lib_name_path("vpi", "vcs"),
+                "-top",
+                self.toplevel_module,
             ]
             + self.get_define_commands(self.defines)
             + self.get_include_commands(self.includes)
@@ -843,8 +845,9 @@ class Vcs(Simulator):
             + ["-o", simv_path]
         )
         if self.timescale:
-            cmd += ["-timescale", self.timescale]
-
+            cmd_build += [f"-timescale={self.timescale}"]
+        else:
+            cmd_build += [f"-timescale=1ns/1ps"]
         cmd.append(cmd_build)
 
         if not self.compile_only:
@@ -861,48 +864,6 @@ class Vcs(Simulator):
 
         if self.gui:
             cmd.append("-gui")  # not tested!
-
-        return cmd
-
-
-class Ghdl(Simulator):
-    def get_parameter_commands(self, parameters):
-        return [f"-g{name}={str(value)}" for name, value in parameters.items()]
-
-    def build_command(self):
-
-        ghdl_exec = shutil.which("ghdl")
-        if ghdl_exec is None:
-            raise ValueError("GHDL executable not found.")
-
-        cmd = []
-
-        out_file = os.path.join(self.sim_dir, self.toplevel_module)
-        compile_args = self.compile_args + self.vhdl_compile_args
-
-        if self.outdated(out_file, self.vhdl_sources) or self.force_compile:
-            for lib, src in self.vhdl_sources.items():
-                cmd.append(["ghdl", "-i"] + compile_args + [f"--work={lib}"] + src)
-
-            cmd_elaborate = ["ghdl", "-m", f"--work={self.toplevel_library}"] + compile_args + [self.toplevel_module]
-            cmd.append(cmd_elaborate)
-
-        if self.waves:
-            self.simulation_args.append(f"--wave={self.toplevel_module}.ghw")
-
-        self.env["PATH"] += os.pathsep + os.path.join(os.path.dirname(os.path.dirname(ghdl_exec)), "lib")
-
-        cmd_run = (
-            ["ghdl", "-r", f"--work={self.toplevel_library}"]
-            + compile_args
-            + [self.toplevel_module]
-            + ["--vpi=" + cocotb.config.lib_name_path("vpi", "ghdl")]
-            + self.simulation_args
-            + self.get_parameter_commands(self.parameters)
-        )
-
-        if not self.compile_only:
-            cmd.append(cmd_run)
 
         return cmd
 
